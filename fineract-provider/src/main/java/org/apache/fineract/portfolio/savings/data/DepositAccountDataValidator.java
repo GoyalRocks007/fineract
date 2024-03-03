@@ -129,7 +129,7 @@ public class DepositAccountDataValidator {
         throwExceptionIfValidationWarningsExist(dataValidationErrors);
     }
 
-    public void validateFixedDepositForInterestCalculation(final String json){
+    public void validateFixedDepositForInterestCalculation(final String json) {
         if (StringUtils.isBlank(json)) {
             throw new InvalidJsonException();
         }
@@ -350,8 +350,7 @@ public class DepositAccountDataValidator {
         }
     }
 
-    private void validateForInterestCalc(final JsonElement element, final DataValidatorBuilder baseDataValidator){
-
+    private void validateForInterestCalc(final JsonElement element, final DataValidatorBuilder baseDataValidator) {
 
         Long principalAmount = this.fromApiJsonHelper.extractLongNamed("principalAmount", element);
         baseDataValidator.reset().parameter("principalAmount").value(principalAmount).notNull();
@@ -361,21 +360,18 @@ public class DepositAccountDataValidator {
         baseDataValidator.reset().parameter("annualInterestRate").value(annualInterestRate).notNull();
         baseDataValidator.reset().parameter("annualInterestRate").value(annualInterestRate).notLessThanMin(BigDecimal.valueOf(0));
 
-
         Long tenureInMonths = this.fromApiJsonHelper.extractLongNamed("tenureInMonths", element);
         baseDataValidator.reset().parameter("tenureInMonths").value(tenureInMonths).notNull();
         baseDataValidator.reset().parameter("tenureInMonths").value(tenureInMonths).longGreaterThanZero();
-
 
         Long interestPostingPeriodInMonths = this.fromApiJsonHelper.extractLongNamed("interestPostingPeriodInMonths", element);
         baseDataValidator.reset().parameter("interestPostingPeriodInMonths").value(interestPostingPeriodInMonths).notNull();
         baseDataValidator.reset().parameter("interestPostingPeriodInMonths").value(interestPostingPeriodInMonths).longGreaterThanZero();
 
-
         Long interestCompoundingPeriodInMonths = this.fromApiJsonHelper.extractLongNamed("interestCompoundingPeriodInMonths", element);
         baseDataValidator.reset().parameter("interestCompoundingPeriodInMonths").value(interestCompoundingPeriodInMonths).notNull();
-        baseDataValidator.reset().parameter("interestCompoundingPeriodInMonths").value(interestCompoundingPeriodInMonths).inMinMaxRange(0,12);
-
+        baseDataValidator.reset().parameter("interestCompoundingPeriodInMonths").value(interestCompoundingPeriodInMonths).inMinMaxRange(0,
+                12);
 
     }
 

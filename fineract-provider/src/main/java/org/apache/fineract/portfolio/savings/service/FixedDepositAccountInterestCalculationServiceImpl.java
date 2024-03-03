@@ -20,20 +20,20 @@
 package org.apache.fineract.portfolio.savings.service;
 
 import com.google.gson.JsonElement;
+import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
 import org.apache.fineract.infrastructure.core.api.JsonQuery;
 import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
 import org.apache.fineract.portfolio.savings.data.DepositAccountDataValidator;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
-
 @Service
 @RequiredArgsConstructor
-public class FixedDepositAccountInterestCalculationServiceImpl implements FixedDepositAccountInterestCalculationService{
+public class FixedDepositAccountInterestCalculationServiceImpl implements FixedDepositAccountInterestCalculationService {
 
     private final DepositAccountDataValidator depositAccountDataValidator;
     private final FromJsonHelper fromApiJsonHelper;
+
     @Override
     public double calculateInterest(JsonQuery query) {
         depositAccountDataValidator.validateFixedDepositForInterestCalculation(query.json());
@@ -44,9 +44,9 @@ public class FixedDepositAccountInterestCalculationServiceImpl implements FixedD
         Long interestPostingPeriodInMonths = this.fromApiJsonHelper.extractLongNamed("interestPostingPeriodInMonths", element);
         Long interestCompoundingPeriodInMonths = this.fromApiJsonHelper.extractLongNamed("interestCompoundingPeriodInMonths", element);
 
-        double n = (12/(double)interestCompoundingPeriodInMonths);
+        double n = (12 / (double) interestCompoundingPeriodInMonths);
         double r = annualInterestRate.doubleValue();
-        double maturityAmount =principalAmount * (Math.pow((1+(r/(n*100))),((tenureInMonths*n)/12)));
+        double maturityAmount = principalAmount * (Math.pow((1 + (r / (n * 100))), ((tenureInMonths * n) / 12)));
         return maturityAmount;
     }
 }

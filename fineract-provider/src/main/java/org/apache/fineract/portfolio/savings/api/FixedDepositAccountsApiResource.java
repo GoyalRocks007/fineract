@@ -45,7 +45,6 @@ import jakarta.ws.rs.core.UriInfo;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.util.*;
-
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.commands.domain.CommandWrapper;
@@ -99,7 +98,6 @@ public class FixedDepositAccountsApiResource {
     private final BulkImportWorkbookService bulkImportWorkbookService;
     private final BulkImportWorkbookPopulatorService bulkImportWorkbookPopulatorService;
     private final FixedDepositAccountInterestCalculationService fixedDepositAccountInterestCalculationService;
-
 
     @GET
     @Path("template")
@@ -448,9 +446,10 @@ public class FixedDepositAccountsApiResource {
             @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = FixedDepositAccountsApiResourceSwagger.CalculateFixedDepositInterestResponse.class))) })
     public String calculateFixedDepositInterest(@Parameter(hidden = true) final String apiRequestBodyAsJson) {
         JsonElement jsonElement = fromJsonHelper.parse(apiRequestBodyAsJson);
-        double maturityAmount = fixedDepositAccountInterestCalculationService.calculateInterest(new JsonQuery(apiRequestBodyAsJson,jsonElement,fromJsonHelper));
-        HashMap<String,Double> response = new HashMap<>();
-        response.put("maturityAmount",maturityAmount);
+        double maturityAmount = fixedDepositAccountInterestCalculationService
+                .calculateInterest(new JsonQuery(apiRequestBodyAsJson, jsonElement, fromJsonHelper));
+        HashMap<String, Double> response = new HashMap<>();
+        response.put("maturityAmount", maturityAmount);
         return toApiJsonSerializer.serializeResult(response);
 
     }

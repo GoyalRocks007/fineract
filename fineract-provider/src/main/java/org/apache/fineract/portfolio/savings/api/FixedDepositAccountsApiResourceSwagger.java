@@ -258,7 +258,8 @@ final class FixedDepositAccountsApiResourceSwagger {
 
     @Schema(description = "CalculateFixedDepositInterestRequest")
     public static final class CalculateFixedDepositInterestRequest {
-        private CalculateFixedDepositInterestRequest(){}
+
+        private CalculateFixedDepositInterestRequest() {}
 
         @Schema(example = "10000")
         public long principalAmount;
@@ -266,7 +267,7 @@ final class FixedDepositAccountsApiResourceSwagger {
         public float annualInterestRate;
         @Schema(example = "12")
         public int tenureInMonths;
-        @Schema(example= "3")
+        @Schema(example = "3")
         public int interestPostingPeriodInMonths;
         @Schema(example = "1")
         public int interestCompoundingPeriodInMonths;
