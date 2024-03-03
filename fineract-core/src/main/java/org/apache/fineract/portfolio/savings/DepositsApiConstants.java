@@ -112,11 +112,11 @@ public final class DepositsApiConstants {
     public static final String routingCodeParamName = "routingCode";
     public static final String receiptNumberParamName = "receiptNumber";
     public static final String bankNumberParamName = "bankNumber";
-    public static final String principalAmount=  "principalAmount";
-    public static final String annualInterestRate=  "annualInterestRate";
-    public static final String interestPostingPeriodInMonths=  "interestPostingPeriodInMonths";
-    public static final String tenureInMonths =  "tenureInMonths";
-    public static final String interestCompoundingPeriodInMonths =  "interestCompoundingPeriodInMonths";
+    public static final String principalAmount = "principalAmount";
+    public static final String annualInterestRate = "annualInterestRate";
+    public static final String interestPostingPeriodInMonths = "interestPostingPeriodInMonths";
+    public static final String tenureInMonths = "tenureInMonths";
+    public static final String interestCompoundingPeriodInMonths = "interestCompoundingPeriodInMonths";
 
     // Preclosure parameters
     public static final String preClosurePenalApplicableParamName = "preClosurePenalApplicable";
@@ -314,7 +314,7 @@ public final class DepositsApiConstants {
     public static final Set<String> RECURRING_DEPOSIT_ACCOUNT_REQUEST_DATA_PARAMETERS = recurringDepositAccountRequestData();
     public static final Set<String> RECURRING_DEPOSIT_ACCOUNT_RESPONSE_DATA_PARAMETERS = recurringDepositAccountResponseData();
 
-    private static Set<String> fixedDepositInterestCalculationData(){
+    private static Set<String> fixedDepositInterestCalculationData() {
         final Set<String> fixedDepositInterestCalculationData = new HashSet<>();
         fixedDepositInterestCalculationData.add(principalAmount);
         fixedDepositInterestCalculationData.add(annualInterestRate);
@@ -325,6 +325,7 @@ public final class DepositsApiConstants {
         return fixedDepositInterestCalculationData;
 
     }
+
     private static Set<String> fixedDepositAccountRequestData() {
         final Set<String> fixedDepositRequestData = new HashSet<>();
         fixedDepositRequestData.addAll(DEPOSIT_ACCOUNT_REQUEST_DATA_PARAMETERS);
