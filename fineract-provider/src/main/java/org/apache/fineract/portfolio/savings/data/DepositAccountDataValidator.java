@@ -18,7 +18,6 @@
  */
 package org.apache.fineract.portfolio.savings.data;
 
-
 import static org.apache.fineract.portfolio.savings.DepositsApiConstants.adjustAdvanceTowardsFuturePaymentsParamName;
 import static org.apache.fineract.portfolio.savings.DepositsApiConstants.allowWithdrawalParamName;
 import static org.apache.fineract.portfolio.savings.DepositsApiConstants.annualInterestRateParamName;
