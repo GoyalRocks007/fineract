@@ -111,6 +111,7 @@ import org.apache.fineract.portfolio.loanaccount.data.LoanCollateralManagementDa
 import org.apache.fineract.portfolio.loanaccount.data.LoanTermVariationsData;
 import org.apache.fineract.portfolio.loanaccount.data.ScheduleGeneratorDTO;
 import org.apache.fineract.portfolio.loanaccount.domain.transactionprocessor.LoanRepaymentScheduleTransactionProcessor;
+import org.apache.fineract.portfolio.loanaccount.domain.transactionprocessor.LoanRepaymentScheduleTransactionProcessor.TransactionCtx;
 import org.apache.fineract.portfolio.loanaccount.domain.transactionprocessor.MoneyHolder;
 import org.apache.fineract.portfolio.loanaccount.exception.ExceedingTrancheCountException;
 import org.apache.fineract.portfolio.loanaccount.exception.InvalidLoanStateTransitionException;
@@ -139,6 +140,7 @@ import org.apache.fineract.portfolio.loanproduct.domain.InterestRecalculationCom
 import org.apache.fineract.portfolio.loanproduct.domain.LoanProduct;
 import org.apache.fineract.portfolio.loanproduct.domain.LoanProductRelatedDetail;
 import org.apache.fineract.portfolio.loanproduct.domain.LoanRescheduleStrategyMethod;
+import org.apache.fineract.portfolio.loanproduct.domain.PaymentAllocationTransactionType;
 import org.apache.fineract.portfolio.loanproduct.domain.RecalculationFrequencyType;
 import org.apache.fineract.portfolio.loanproduct.domain.RepaymentStartDateType;
 import org.apache.fineract.portfolio.loanproduct.service.LoanEnumerations;
@@ -242,6 +244,9 @@ public class Loan extends AbstractAuditableWithUTCDateTimeCustom {
 
     @OneToMany(cascade = CascadeType.ALL, mappedBy = "loan", orphanRemoval = true, fetch = FetchType.LAZY)
     private List<LoanPaymentAllocationRule> paymentAllocationRules = new ArrayList<>();
+
+    @OneToMany(cascade = CascadeType.ALL, mappedBy = "loan", orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<LoanCreditAllocationRule> creditAllocationRules = new ArrayList<>();
 
     @Embedded
     private LoanProductRelatedDetail loanRepaymentScheduleDetail;
@@ -797,8 +802,8 @@ public class Loan extends AbstractAuditableWithUTCDateTimeCustom {
         }
         final Set<LoanCharge> loanCharges = new HashSet<>(1);
         loanCharges.add(charge);
-        loanRepaymentScheduleTransactionProcessor.processLatestTransaction(chargesPayment, getCurrency(), chargePaymentInstallments,
-                loanCharges, new MoneyHolder(getTotalOverpaidAsMoney()));
+        loanRepaymentScheduleTransactionProcessor.processLatestTransaction(chargesPayment,
+                new TransactionCtx(getCurrency(), chargePaymentInstallments, loanCharges, new MoneyHolder(getTotalOverpaidAsMoney())));
 
         updateLoanSummaryDerivedFields();
         doPostLoanTransactionChecks(chargesPayment.getTransactionDate(), loanLifecycleStateMachine);
@@ -2480,7 +2485,7 @@ public class Loan extends AbstractAuditableWithUTCDateTimeCustom {
     }
 
     public ChangedTransactionDetail disburse(final AppUser currentUser, final JsonCommand command, final Map<String, Object> actualChanges,
-            final ScheduleGeneratorDTO scheduleGeneratorDTO, final PaymentDetail paymentDetail, boolean downPaymentEnabled) {
+            final ScheduleGeneratorDTO scheduleGeneratorDTO, final PaymentDetail paymentDetail) {
 
         final LocalDate actualDisbursementDate = command.localDateValueOfParameterNamed(ACTUAL_DISBURSEMENT_DATE);
 
@@ -2498,7 +2503,7 @@ public class Loan extends AbstractAuditableWithUTCDateTimeCustom {
         validateDisbursementDateIsOnHoliday(holidayDetailDTO.isAllowTransactionsOnHoliday(), holidayDetailDTO.getHolidays());
 
         regenerateRepaymentScheduleWithInterestRecalculationIfNeeded(this.repaymentScheduleDetail().isInterestRecalculationEnabled(),
-                isDisbursementMissed(), scheduleGeneratorDTO, downPaymentEnabled);
+                isDisbursementMissed(), scheduleGeneratorDTO);
 
         updateSummaryWithTotalFeeChargesDueAtDisbursement(deriveSumTotalOfChargesDueAtDisbursement());
         updateLoanRepaymentPeriodsDerivedFields(actualDisbursementDate);
@@ -2530,7 +2535,7 @@ public class Loan extends AbstractAuditableWithUTCDateTimeCustom {
     }
 
     private void regenerateRepaymentScheduleWithInterestRecalculationIfNeeded(boolean interestRecalculationEnabledParam,
-            boolean disbursementMissedParam, ScheduleGeneratorDTO scheduleGeneratorDTO, final boolean downPaymentEnabled) {
+            boolean disbursementMissedParam, ScheduleGeneratorDTO scheduleGeneratorDTO) {
 
         LocalDate firstInstallmentDueDate = fetchRepaymentScheduleInstallment(1).getDueDate();
         if ((interestRecalculationEnabledParam && (DateUtils.isBeforeBusinessDate(firstInstallmentDueDate) || disbursementMissedParam))) {
@@ -2951,7 +2956,7 @@ public class Loan extends AbstractAuditableWithUTCDateTimeCustom {
 
     }
 
-    public LoanTransaction handleDownPayment(final BigDecimal disbursedAmount, final JsonCommand command,
+    public LoanTransaction handleDownPayment(final LoanTransaction disbursementTransaction, final JsonCommand command,
             final ScheduleGeneratorDTO scheduleGeneratorDTO) {
         LocalDate disbursedOn = command.localDateValueOfParameterNamed(ACTUAL_DISBURSEMENT_DATE);
         BigDecimal disbursedAmountPercentageForDownPayment = this.loanRepaymentScheduleDetail.getDisbursedAmountPercentageForDownPayment();
@@ -2960,19 +2965,42 @@ public class Loan extends AbstractAuditableWithUTCDateTimeCustom {
             externalId = ExternalId.generate();
         }
         Money downPaymentMoney = Money.of(getCurrency(),
-                MathUtil.percentageOf(disbursedAmount, disbursedAmountPercentageForDownPayment, 19));
-        LoanTransaction downPaymentTransaction = LoanTransaction.downPayment(getOffice(), downPaymentMoney, null, disbursedOn, externalId);
+                MathUtil.percentageOf(disbursementTransaction.getAmount(), disbursedAmountPercentageForDownPayment, 19));
 
-        LoanEvent event = LoanEvent.LOAN_REPAYMENT_OR_WAIVER;
-        validateRepaymentTypeAccountStatus(downPaymentTransaction, event);
-        HolidayDetailDTO holidayDetailDTO = scheduleGeneratorDTO.getHolidayDetailDTO();
-        validateRepaymentDateIsOnHoliday(downPaymentTransaction.getTransactionDate(), holidayDetailDTO.isAllowTransactionsOnHoliday(),
-                holidayDetailDTO.getHolidays());
-        validateRepaymentDateIsOnNonWorkingDay(downPaymentTransaction.getTransactionDate(), holidayDetailDTO.getWorkingDays(),
-                holidayDetailDTO.isAllowTransactionsOnNonWorkingDay());
+        Money adjustedDownPaymentMoney = switch (getLoanProductRelatedDetail().getLoanScheduleType()) {
+            // For Cumulative loan: To check whether the loan was overpaid when the disbursement happened and to get the
+            // proper amount after the disbursement we are using two balances:
+            // 1. Whether the loan is still overpaid after the disbursement,
+            // 2. if the loan is not overpaid anymore after the disbursement, but was it more overpaid than the
+            // calculated down-payment amount?
+            case CUMULATIVE -> {
+                if (getTotalOverpaidAsMoney().isGreaterThanZero()) {
+                    yield Money.zero(getCurrency());
+                }
+                yield MathUtil.negativeToZero(downPaymentMoney.minus(MathUtil.negativeToZero(disbursementTransaction
+                        .getAmount(getCurrency()).minus(disbursementTransaction.getOutstandingLoanBalanceMoney(getCurrency())))));
+            }
+            // For Progressive loan: Disbursement transaction portion balances are enough to see whether the overpayment
+            // amount was more than the calculated down-payment amount
+            case PROGRESSIVE ->
+                MathUtil.negativeToZero(downPaymentMoney.minus(disbursementTransaction.getOverPaymentPortion(getCurrency())));
+        };
+        if (adjustedDownPaymentMoney.isGreaterThanZero()) {
+            LoanTransaction downPaymentTransaction = LoanTransaction.downPayment(getOffice(), adjustedDownPaymentMoney, null, disbursedOn,
+                    externalId);
+            LoanEvent event = LoanEvent.LOAN_REPAYMENT_OR_WAIVER;
+            validateRepaymentTypeAccountStatus(downPaymentTransaction, event);
+            HolidayDetailDTO holidayDetailDTO = scheduleGeneratorDTO.getHolidayDetailDTO();
+            validateRepaymentDateIsOnHoliday(downPaymentTransaction.getTransactionDate(), holidayDetailDTO.isAllowTransactionsOnHoliday(),
+                    holidayDetailDTO.getHolidays());
+            validateRepaymentDateIsOnNonWorkingDay(downPaymentTransaction.getTransactionDate(), holidayDetailDTO.getWorkingDays(),
+                    holidayDetailDTO.isAllowTransactionsOnNonWorkingDay());
 
-        handleRepaymentOrRecoveryOrWaiverTransaction(downPaymentTransaction, loanLifecycleStateMachine, null, scheduleGeneratorDTO);
-        return downPaymentTransaction;
+            handleRepaymentOrRecoveryOrWaiverTransaction(downPaymentTransaction, loanLifecycleStateMachine, null, scheduleGeneratorDTO);
+            return downPaymentTransaction;
+        } else {
+            return null;
+        }
     }
 
     public boolean isAutoRepaymentForDownPaymentEnabled() {
@@ -3321,8 +3349,8 @@ public class Loan extends AbstractAuditableWithUTCDateTimeCustom {
 
         if (isTransactionChronologicallyLatest && adjustedTransaction == null
                 && (!reprocess || !this.repaymentScheduleDetail().isInterestRecalculationEnabled()) && !isForeclosure()) {
-            loanRepaymentScheduleTransactionProcessor.processLatestTransaction(loanTransaction, getCurrency(),
-                    getRepaymentScheduleInstallments(), getActiveCharges(), new MoneyHolder(getTotalOverpaidAsMoney()));
+            loanRepaymentScheduleTransactionProcessor.processLatestTransaction(loanTransaction, new TransactionCtx(getCurrency(),
+                    getRepaymentScheduleInstallments(), getActiveCharges(), new MoneyHolder(getTotalOverpaidAsMoney())));
             reprocess = false;
             if (this.repaymentScheduleDetail().isInterestRecalculationEnabled()) {
                 if (currentInstallment == null || currentInstallment.isNotFullyPaidOff()) {
@@ -3590,7 +3618,11 @@ public class Loan extends AbstractAuditableWithUTCDateTimeCustom {
         final LocalDate currentTransactionDate = loanTransaction.getTransactionDate();
         for (final LoanTransaction previousTransaction : loanTransactions) {
             if (!previousTransaction.isDisbursement() && previousTransaction.isNotReversed()
-                    && !DateUtils.isAfter(currentTransactionDate, previousTransaction.getTransactionDate())) {
+                    && (DateUtils.isBefore(currentTransactionDate, previousTransaction.getTransactionDate())
+                            || (DateUtils.isEqual(currentTransactionDate, previousTransaction.getTransactionDate())
+                                    && ((loanTransaction.getId() == null && previousTransaction.getId() == null)
+                                            || (loanTransaction.getId() != null && (previousTransaction.getId() == null
+                                                    || loanTransaction.getId().compareTo(previousTransaction.getId()) < 0)))))) {
                 isChronologicallyLatestRepaymentOrWaiver = false;
                 break;
             }
@@ -3835,7 +3867,9 @@ public class Loan extends AbstractAuditableWithUTCDateTimeCustom {
             if (loanTransaction.isRefund() || loanTransaction.isRefundForActiveLoan()) {
                 totalPaidInRepayments = totalPaidInRepayments.minus(loanTransaction.getAmount(currency));
             } else if (loanTransaction.isCreditBalanceRefund() || loanTransaction.isChargeback()) {
-                totalPaidInRepayments = totalPaidInRepayments.minus(loanTransaction.getOverPaymentPortion(currency));
+                if (loanTransaction.getPrincipalPortion(currency).isZero()) {
+                    totalPaidInRepayments = totalPaidInRepayments.minus(loanTransaction.getOverPaymentPortion(currency));
+                }
             }
         }
 
@@ -3914,8 +3948,8 @@ public class Loan extends AbstractAuditableWithUTCDateTimeCustom {
             }
 
             addLoanTransaction(loanTransaction);
-            loanRepaymentScheduleTransactionProcessor.processLatestTransaction(loanTransaction, loanCurrency(),
-                    getRepaymentScheduleInstallments(), getActiveCharges(), new MoneyHolder(getTotalOverpaidAsMoney()));
+            loanRepaymentScheduleTransactionProcessor.processLatestTransaction(loanTransaction, new TransactionCtx(loanCurrency(),
+                    getRepaymentScheduleInstallments(), getActiveCharges(), new MoneyHolder(getTotalOverpaidAsMoney())));
 
             updateLoanSummaryDerivedFields();
         }
@@ -4019,8 +4053,8 @@ public class Loan extends AbstractAuditableWithUTCDateTimeCustom {
                 }
 
                 addLoanTransaction(loanTransaction);
-                loanRepaymentScheduleTransactionProcessor.processLatestTransaction(loanTransaction, loanCurrency(),
-                        getRepaymentScheduleInstallments(), getActiveCharges(), new MoneyHolder(getTotalOverpaidAsMoney()));
+                loanRepaymentScheduleTransactionProcessor.processLatestTransaction(loanTransaction, new TransactionCtx(loanCurrency(),
+                        getRepaymentScheduleInstallments(), getActiveCharges(), new MoneyHolder(getTotalOverpaidAsMoney())));
 
                 updateLoanSummaryDerivedFields();
             } else if (totalOutstanding.isGreaterThanZero()) {
@@ -4274,6 +4308,13 @@ public class Loan extends AbstractAuditableWithUTCDateTimeCustom {
             }
         }
         return cumulativePaid;
+    }
+
+    public Money getTotalPrincipalOutstandingUntil(LocalDate date) {
+        return getRepaymentScheduleInstallments().stream()
+                .filter(installment -> installment.getDueDate().isBefore(date) || installment.getDueDate().isEqual(date))
+                .map(installment -> installment.getPrincipalOutstanding(loanCurrency())).reduce(Money.zero(loanCurrency()), Money::add);
+
     }
 
     private Money getTotalInterestOutstandingOnLoan() {
@@ -4580,7 +4621,7 @@ public class Loan extends AbstractAuditableWithUTCDateTimeCustom {
                 getAccountingBridgeDataGenericAttributes(currencyCode, isAccountTransfer));
         if (isBeforeChargeOffDate) {
             accountingBridgeDataChargeOff.put("isChargeOff", false);
-            accountingBridgeDataChargeOff.put("isFraud", false);
+            accountingBridgeDataChargeOff.put("isFraud", isFraud());
         } else {
             accountingBridgeDataChargeOff.put("isChargeOff", isChargedOff());
             accountingBridgeDataChargeOff.put("isFraud", isFraud());
@@ -5081,10 +5122,10 @@ public class Loan extends AbstractAuditableWithUTCDateTimeCustom {
                 .orElse(null);
     }
 
-    public LoanTransaction getLastRepaymentTransaction() {
+    public LoanTransaction getLastRepaymentOrDownPaymentTransaction() {
         return loanTransactions.stream() //
                 .filter(loanTransaction -> !loanTransaction.isReversed()) //
-                .filter(LoanTransaction::isRepayment) //
+                .filter(loanTransaction -> loanTransaction.isRepayment() || loanTransaction.isDownPayment()) //
                 .reduce((first, second) -> second) //
                 .orElse(null);
     }
@@ -5937,20 +5978,28 @@ public class Loan extends AbstractAuditableWithUTCDateTimeCustom {
         List<LoanTransaction> loanTransactions = retrieveListOfTransactionsExcludeAccruals();
         for (LoanTransaction loanTransaction : loanTransactions) {
             if (loanTransaction.isDisbursement() || loanTransaction.isIncomePosting()) {
-                outstanding = outstanding.plus(loanTransaction.getAmount(getCurrency()));
-                loanTransaction.updateOutstandingLoanBalance(outstanding.getAmount());
+                outstanding = outstanding.plus(loanTransaction.getAmount(getCurrency()))
+                        .minus(loanTransaction.getOverPaymentPortion(getCurrency()));
+                loanTransaction.updateOutstandingLoanBalance(MathUtil.negativeToZero(outstanding.getAmount()));
             } else if (loanTransaction.isChargeback() || loanTransaction.isCreditBalanceRefund()) {
-                Money transactionOutstanding = loanTransaction.getAmount(getCurrency());
+                Money transactionOutstanding = loanTransaction.getPrincipalPortion(getCurrency());
                 if (!loanTransaction.getOverPaymentPortion(getCurrency()).isZero()) {
-                    transactionOutstanding = loanTransaction.getAmount(getCurrency())
-                            .minus(loanTransaction.getOverPaymentPortion(getCurrency()));
+                    // in case of advanced payment strategy and creditAllocations the full amount is recognized first
+                    if (this.getCreditAllocationRules() != null && this.getCreditAllocationRules().size() > 0) {
+                        Money payedPrincipal = loanTransaction.getLoanTransactionToRepaymentScheduleMappings().stream()
+                                .map(mapping -> mapping.getPrincipalPortion(getCurrency())).reduce(Money.zero(getCurrency()), Money::plus);
+                        transactionOutstanding = loanTransaction.getPrincipalPortion(getCurrency()).minus(payedPrincipal);
+                    } else {
+                        // in case legacy payment strategy
+                        transactionOutstanding = loanTransaction.getAmount(getCurrency())
+                                .minus(loanTransaction.getOverPaymentPortion(getCurrency()));
+                    }
                     if (transactionOutstanding.isLessThanZero()) {
                         transactionOutstanding = Money.zero(getCurrency());
                     }
                 }
                 outstanding = outstanding.plus(transactionOutstanding);
-                loanTransaction.updateOutstandingLoanBalance(outstanding.getAmount());
-
+                loanTransaction.updateOutstandingLoanBalance(MathUtil.negativeToZero(outstanding.getAmount()));
             } else {
                 if (this.loanInterestRecalculationDetails != null
                         && this.loanInterestRecalculationDetails.isCompoundingToBePostedAsTransaction()
@@ -5959,7 +6008,7 @@ public class Loan extends AbstractAuditableWithUTCDateTimeCustom {
                 } else {
                     outstanding = outstanding.minus(loanTransaction.getPrincipalPortion(getCurrency()));
                 }
-                loanTransaction.updateOutstandingLoanBalance(outstanding.getAmount());
+                loanTransaction.updateOutstandingLoanBalance(MathUtil.negativeToZero(outstanding.getAmount()));
             }
         }
     }
@@ -6373,8 +6422,8 @@ public class Loan extends AbstractAuditableWithUTCDateTimeCustom {
 
         // If is a refund
         if (adjustedTransaction == null) {
-            loanRepaymentScheduleTransactionProcessor.processLatestTransaction(loanTransaction, getCurrency(),
-                    getRepaymentScheduleInstallments(), getActiveCharges(), new MoneyHolder(getTotalOverpaidAsMoney()));
+            loanRepaymentScheduleTransactionProcessor.processLatestTransaction(loanTransaction, new TransactionCtx(getCurrency(),
+                    getRepaymentScheduleInstallments(), getActiveCharges(), new MoneyHolder(getTotalOverpaidAsMoney())));
         } else {
             final List<LoanTransaction> allNonContraTransactionsPostDisbursement = retrieveListOfTransactionsPostDisbursement();
             changedTransactionDetail = loanRepaymentScheduleTransactionProcessor.reprocessLoanTransactions(getDisbursementDate(),
@@ -6404,8 +6453,8 @@ public class Loan extends AbstractAuditableWithUTCDateTimeCustom {
                 .determineProcessor(this.transactionProcessingStrategyCode);
 
         addLoanTransaction(chargebackTransaction);
-        loanRepaymentScheduleTransactionProcessor.processLatestTransaction(chargebackTransaction, getCurrency(),
-                getRepaymentScheduleInstallments(), getActiveCharges(), new MoneyHolder(getTotalOverpaidAsMoney()));
+        loanRepaymentScheduleTransactionProcessor.processLatestTransaction(chargebackTransaction, new TransactionCtx(getCurrency(),
+                getRepaymentScheduleInstallments(), getActiveCharges(), new MoneyHolder(getTotalOverpaidAsMoney())));
 
         updateLoanSummaryDerivedFields();
         if (!doPostLoanTransactionChecks(chargebackTransaction.getTransactionDate(), loanLifecycleStateMachine)) {
@@ -7179,8 +7228,23 @@ public class Loan extends AbstractAuditableWithUTCDateTimeCustom {
         return paymentAllocationRules;
     }
 
+    public LoanPaymentAllocationRule getPaymentAllocationRuleOrDefault(PaymentAllocationTransactionType transactionType) {
+        Optional<LoanPaymentAllocationRule> paymentAllocationRule = this.getPaymentAllocationRules().stream()
+                .filter(rule -> rule.getTransactionType().equals(transactionType)).findFirst();
+        return paymentAllocationRule.orElse(this.getPaymentAllocationRules().stream()
+                .filter(rule -> rule.getTransactionType().equals(PaymentAllocationTransactionType.DEFAULT)).findFirst().get());
+    }
+
     public void setPaymentAllocationRules(List<LoanPaymentAllocationRule> loanPaymentAllocationRules) {
         this.paymentAllocationRules = loanPaymentAllocationRules;
+    }
+
+    public List<LoanCreditAllocationRule> getCreditAllocationRules() {
+        return creditAllocationRules;
+    }
+
+    public void setCreditAllocationRules(List<LoanCreditAllocationRule> loanCreditAllocationRules) {
+        this.creditAllocationRules = loanCreditAllocationRules;
     }
 
     public String getTransactionProcessingStrategyCode() {

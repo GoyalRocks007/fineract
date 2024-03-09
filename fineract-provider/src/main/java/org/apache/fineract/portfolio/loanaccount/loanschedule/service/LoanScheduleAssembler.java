@@ -359,6 +359,8 @@ public class LoanScheduleAssembler {
         CalendarInstance compoundingCalendarInstance = null;
         InterestRecalculationCompoundingMethod compoundingMethod = null;
         boolean allowCompoundingOnEod = false;
+        final Boolean isFloatingInterestRate = this.fromApiJsonHelper
+                .extractBooleanNamed(LoanApiConstants.isFloatingInterestRateParameterName, element);
         if (isInterestRecalculationEnabled) {
             LoanProductInterestRecalculationDetails loanProductInterestRecalculationDetails = loanProduct
                     .getProductInterestRecalculationDetails();
@@ -409,8 +411,7 @@ public class LoanScheduleAssembler {
         if (loanProduct.isLinkedToFloatingInterestRate()) {
             final BigDecimal interestRateDiff = this.fromApiJsonHelper
                     .extractBigDecimalWithLocaleNamed(LoanApiConstants.interestRateDifferentialParameterName, element);
-            final Boolean isFloatingInterestRate = this.fromApiJsonHelper
-                    .extractBooleanNamed(LoanApiConstants.isFloatingInterestRateParameterName, element);
+
             List<FloatingRatePeriodData> baseLendingRatePeriods = null;
             try {
                 baseLendingRatePeriods = this.floatingRatesReadPlatformService.retrieveBaseLendingRate().getRatePeriods();
@@ -459,13 +460,10 @@ public class LoanScheduleAssembler {
         final boolean isDownPaymentEnabled = loanProduct.getLoanProductRelatedDetail().isEnableDownPayment();
         BigDecimal disbursedAmountPercentageForDownPayment = null;
         boolean isAutoRepaymentForDownPaymentEnabled = false;
-        boolean isScheduleExtensionForDownPaymentDisabled = false;
         if (isDownPaymentEnabled) {
             disbursedAmountPercentageForDownPayment = loanProduct.getLoanProductRelatedDetail()
                     .getDisbursedAmountPercentageForDownPayment();
             isAutoRepaymentForDownPaymentEnabled = loanProduct.getLoanProductRelatedDetail().isEnableAutoRepaymentForDownPayment();
-            isScheduleExtensionForDownPaymentDisabled = loanProduct.getLoanProductRelatedDetail()
-                    .isDisableScheduleExtensionForDownPayment();
 
         }
 
@@ -493,7 +491,7 @@ public class LoanScheduleAssembler {
                 allowCompoundingOnEod, isEqualAmortization, isInterestToBeRecoveredFirstWhenGreaterThanEMI,
                 fixedPrincipalPercentagePerInstallment, isPrincipalCompoundingDisabledForOverdueLoans, isDownPaymentEnabled,
                 disbursedAmountPercentageForDownPayment, isAutoRepaymentForDownPaymentEnabled, repaymentStartDateType, submittedOnDate,
-                isScheduleExtensionForDownPaymentDisabled, loanScheduleType, loanScheduleProcessingType);
+                loanScheduleType, loanScheduleProcessingType);
     }
 
     private CalendarInstance createCalendarForSameAsRepayment(final Integer repaymentEvery,
