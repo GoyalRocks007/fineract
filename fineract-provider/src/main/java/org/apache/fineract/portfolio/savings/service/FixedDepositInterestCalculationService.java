@@ -23,5 +23,5 @@ import org.apache.fineract.infrastructure.core.api.JsonQuery;
 
 public interface FixedDepositInterestCalculationService {
 
-    public double calculateInterest(JsonQuery query);
+    double calculateInterest(JsonQuery query);
 }
