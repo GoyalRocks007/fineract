@@ -30,9 +30,11 @@ import lombok.RequiredArgsConstructor;
 import org.apache.fineract.infrastructure.core.api.JsonQuery;
 import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
 import org.apache.fineract.portfolio.savings.data.DepositAccountDataValidator;
+import org.springframework.stereotype.Service;
 
+@Service
 @RequiredArgsConstructor
-public class FixedDepositInterestCalculationServiceImpl implements FixedDepositInterestCalculationService {
+public class FixedDepositAccountInterestCalculationServiceImpl implements FixedDepositAccountInterestCalculationService {
 
     private final DepositAccountDataValidator depositAccountDataValidator;
     private final FromJsonHelper fromApiJsonHelper;

@@ -46,6 +46,7 @@ import java.io.InputStream;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -79,6 +80,7 @@ import org.apache.fineract.portfolio.savings.data.SavingsAccountChargeData;
 import org.apache.fineract.portfolio.savings.data.SavingsAccountTransactionData;
 import org.apache.fineract.portfolio.savings.service.DepositAccountPreMatureCalculationPlatformService;
 import org.apache.fineract.portfolio.savings.service.DepositAccountReadPlatformService;
+import org.apache.fineract.portfolio.savings.service.FixedDepositAccountInterestCalculationService;
 import org.apache.fineract.portfolio.savings.service.SavingsAccountChargeReadPlatformService;
 import org.glassfish.jersey.media.multipart.FormDataContentDisposition;
 import org.glassfish.jersey.media.multipart.FormDataParam;
@@ -102,6 +104,7 @@ public class FixedDepositAccountsApiResource {
     private final AccountAssociationsReadPlatformService accountAssociationsReadPlatformService;
     private final BulkImportWorkbookService bulkImportWorkbookService;
     private final BulkImportWorkbookPopulatorService bulkImportWorkbookPopulatorService;
+    private final FixedDepositAccountInterestCalculationService fixedDepositAccountInterestCalculationService;
 
     @GET
     @Path("template")
@@ -206,6 +209,23 @@ public class FixedDepositAccountsApiResource {
                 mandatoryResponseParameters);
         return this.toApiJsonSerializer.serialize(settings, accountTemplate,
                 DepositsApiConstants.FIXED_DEPOSIT_ACCOUNT_RESPONSE_DATA_PARAMETERS);
+    }
+
+    @POST
+    @Path("calculatefdinterest")
+    @Consumes({ MediaType.APPLICATION_JSON })
+    @Produces({ MediaType.APPLICATION_JSON })
+    @RequestBody(required = true, content = @Content(schema = @Schema(implementation = FixedDepositAccountsApiResourceSwagger.CalculateFixedDepositInterestRequest.class)))
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = FixedDepositAccountsApiResourceSwagger.CalculateFixedDepositInterestResponse.class))) })
+    public String calculateFixedDepositInterest(@Parameter(hidden = true) final String apiRequestBodyAsJson) {
+        JsonElement jsonElement = fromJsonHelper.parse(apiRequestBodyAsJson);
+        double maturityAmount = fixedDepositAccountInterestCalculationService
+                .calculateInterest(new JsonQuery(apiRequestBodyAsJson, jsonElement, fromJsonHelper));
+        HashMap<String, Double> response = new HashMap<>();
+        response.put("maturityAmount", maturityAmount);
+        return toApiJsonSerializer.serializeResult(response);
+
     }
 
     private BigDecimal getActivationCharge(Long accountId) {

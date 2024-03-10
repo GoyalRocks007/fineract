@@ -21,7 +21,7 @@ package org.apache.fineract.portfolio.savings.service;
 
 import org.apache.fineract.infrastructure.core.api.JsonQuery;
 
-public interface FixedDepositInterestCalculationService {
+public interface FixedDepositAccountInterestCalculationService {
 
     double calculateInterest(JsonQuery query);
 }
